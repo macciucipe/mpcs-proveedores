@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inicio · Portal Proveedores</title>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="portal-layout">
+
+  <header class="portal-header">
+    <div class="portal-logo">
+      <span class="mpc">MPC</span><span class="sol">Soluciones</span>
+      <span class="sep">|</span>
+      <span class="prov-name" id="header-empresa">—</span>
+    </div>
+    <div class="portal-user">
+      <span id="header-nombre">—</span>
+      <button onclick="handleLogout()">Salir</button>
+    </div>
+  </header>
+
+  <nav class="portal-nav">
+    <a href="dashboard.html" class="nav-link active">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Inicio
+    </a>
+    <a href="facturas.html" class="nav-link">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Facturas
+    </a>
+    <a href="pagos.html" class="nav-link">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Mis pagos
+    </a>
+    <a href="documentos.html" class="nav-link">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Documentos
+    </a>
+    <a href="precios.html" class="nav-link">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Lista de precios
+    </a>
+  </nav>
+
+  <main class="portal-content">
+    <div style="margin-bottom:1.5rem">
+      <h1 style="font-size:20px;font-weight:700;margin-bottom:4px">Bienvenido</h1>
+      <p style="font-size:14px;color:var(--text-muted)" id="subtitulo-fecha">—</p>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-val" id="kpi-saldo" style="color:var(--navy)">—</div>
+        <div class="kpi-label">Saldo pendiente (S/)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val" id="kpi-vencido" style="color:var(--error)">—</div>
+        <div class="kpi-label">Vencido</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val" id="kpi-proximos" style="color:var(--warning)">—</div>
+        <div class="kpi-label">Vence próximos 7 días</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-val" id="kpi-pagado" style="color:var(--success)">—</div>
+        <div class="kpi-label">Cobrado este año</div>
+      </div>
+    </div>
+
+    <!-- Próximo pago programado -->
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-header"><h2>Próximos pagos programados</h2></div>
+      <div id="proximos-pagos"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <!-- Facturas recientes -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Últimas facturas</h2>
+        <a href="facturas.html" class="btn btn-ghost btn-sm">Ver todas →</a>
+      </div>
+      <div id="facturas-recientes"><div class="loading">Cargando...</div></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    let perfil = null;
+
+    async function init() {
+      perfil = await requireAuth();
+      if (!perfil) return;
+
+      document.getElementById('header-nombre').textContent  = perfil.nombre;
+      document.getElementById('header-empresa').textContent = perfil.nombre_empresa || '';
+      document.getElementById('subtitulo-fecha').textContent =
+        new Date().toLocaleDateString('es-PE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+      await Promise.all([cargarKPIs(), cargarProximosPagos(), cargarFacturasRecientes()]);
+    }
+
+    async function cargarKPIs() {
+      const ruc = perfil.ruc_empresa; // RUC del proveedor
+      const hoy  = new Date().toISOString().split('T')[0];
+      const en7  = new Date(); en7.setDate(en7.getDate()+7);
+      const en7s = en7.toISOString().split('T')[0];
+      const año  = new Date().getFullYear();
+
+      const [{ data: facs }, { data: pagos }] = await Promise.all([
+        sbClient.from('facturas_proveedor')
+          .select('total_pen, total, fecha_vencimiento, estado')
+          .eq('ruc_emisor', ruc)
+          .not('estado', 'in', '(pagada,rechazada)'),
+        sbClient.from('pagos_ejecutados')
+          .select('monto_pen, fecha_pago')
+          .eq('ruc_proveedor', ruc)
+          .gte('fecha_pago', `${año}-01-01`),
+      ]);
+
+      let saldo = 0, vencido = 0, proximos = 0;
+      for (const f of (facs||[])) {
+        const m = parseFloat(f.total_pen || f.total || 0);
+        saldo += m;
+        if (f.fecha_vencimiento && f.fecha_vencimiento < hoy) vencido += m;
+        if (f.fecha_vencimiento && f.fecha_vencimiento >= hoy && f.fecha_vencimiento <= en7s) proximos += m;
+      }
+      const pagadoAño = (pagos||[]).reduce((s,p) => s + parseFloat(p.monto_pen||0), 0);
+
+      const fmt = n => 'S/ ' + n.toLocaleString('es-PE',{minimumFractionDigits:2});
+      document.getElementById('kpi-saldo').textContent    = fmt(saldo);
+      document.getElementById('kpi-vencido').textContent  = fmt(vencido);
+      document.getElementById('kpi-proximos').textContent = fmt(proximos);
+      document.getElementById('kpi-pagado').textContent   = fmt(pagadoAño);
+    }
+
+    async function cargarProximosPagos() {
+      const { data } = await sbClient.from('programacion_pagos')
+        .select('fecha_programada, moneda, monto, estado')
+        .eq('ruc_proveedor', perfil.ruc_empresa)
+        .not('estado', 'in', '(ejecutado,rechazado,borrador)')
+        .order('fecha_programada')
+        .limit(3);
+
+      const cont = document.getElementById('proximos-pagos');
+      if (!data?.length) {
+        cont.innerHTML = '<div class="empty" style="padding:1.5rem"><p>No hay pagos programados.</p></div>';
+        return;
+      }
+      const estadoColor = { aprobado_admin:'badge-purple', aprobado_gerencia:'badge-blue', aprobado_firma:'badge-green' };
+      const estadoLabel = { aprobado_admin:'En aprobación', aprobado_gerencia:'Aprobado gerencia', aprobado_firma:'Listo para pagar' };
+      cont.innerHTML = data.map(p => {
+        const fecha = new Date(p.fecha_programada+'T12:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'});
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:15px;font-weight:700">${fecha}</div>
+              <span class="badge ${estadoColor[p.estado]||'badge-gray'}" style="font-size:11px;margin-top:4px">${estadoLabel[p.estado]||p.estado}</span>
+            </div>
+            <div style="font-size:18px;font-weight:700;color:var(--success)">${p.moneda==='USD'?'US$ ':'S/ '}${parseFloat(p.monto).toLocaleString('es-PE',{minimumFractionDigits:2})}</div>
+          </div>`;
+      }).join('');
+    }
+
+    async function cargarFacturasRecientes() {
+      const { data } = await sbClient.from('facturas_proveedor')
+        .select('numero_completo, fecha_emision, total, moneda, estado')
+        .eq('ruc_emisor', perfil.ruc_empresa)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      const cont = document.getElementById('facturas-recientes');
+      if (!data?.length) {
+        cont.innerHTML = '<div class="empty" style="padding:1.5rem"><p>No hay facturas registradas.</p></div>';
+        return;
+      }
+      cont.innerHTML = data.map(f => {
+        const fecha = new Date(f.fecha_emision+'T12:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'short'});
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-family:monospace;font-weight:700;font-size:13px">${f.numero_completo}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${fecha}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="badge est-${f.estado}" style="font-size:11px">${f.estado?.replace(/_/g,' ')}</span>
+              <strong style="font-size:14px">${f.moneda==='USD'?'US$ ':'S/ '}${parseFloat(f.total).toLocaleString('es-PE',{minimumFractionDigits:2})}</strong>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    init();
+  </script>
+</body>
+</html>

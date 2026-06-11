@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mis pagos · Portal Proveedores</title>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="portal-layout">
+  <header class="portal-header">
+    <div class="portal-logo"><span class="mpc">MPC</span><span class="sol">Soluciones</span><span class="sep">|</span><span class="prov-name" id="header-empresa">—</span></div>
+    <div class="portal-user"><span id="header-nombre">—</span><button onclick="handleLogout()">Salir</button></div>
+  </header>
+  <nav class="portal-nav">
+    <a href="dashboard.html" class="nav-link">Inicio</a>
+    <a href="facturas.html" class="nav-link">Facturas</a>
+    <a href="pagos.html" class="nav-link active">Mis pagos</a>
+    <a href="documentos.html" class="nav-link">Documentos</a>
+    <a href="precios.html" class="nav-link">Lista de precios</a>
+  </nav>
+  <main class="portal-content">
+    <div style="margin-bottom:1.5rem">
+      <h1 style="font-size:20px;font-weight:700">Mis pagos</h1>
+      <p style="font-size:14px;color:var(--text-muted)">Historial de pagos recibidos y próximos programados</p>
+    </div>
+
+    <!-- Próximos -->
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-header"><h2>Pagos programados</h2></div>
+      <div id="programados"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <!-- Historial -->
+    <div class="card">
+      <div class="card-header"><h2>Historial de pagos</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Empresa</th><th>N° Operación</th><th>Banco origen</th><th>Moneda</th><th>Monto</th></tr></thead>
+          <tbody id="tbody"><tr><td colspan="6"><div class="loading">Cargando...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    let perfil = null;
+    async function init() {
+      perfil = await requireAuth(); if (!perfil) return;
+      document.getElementById('header-nombre').textContent  = perfil.nombre;
+      document.getElementById('header-empresa').textContent = perfil.nombre_empresa || '';
+      await Promise.all([cargarProgramados(), cargarHistorial()]);
+    }
+
+    async function cargarProgramados() {
+      const { data } = await sbClient.from('programacion_pagos')
+        .select('fecha_programada, moneda, monto, estado, ruc_empresa')
+        .eq('ruc_proveedor', perfil.ruc_empresa)
+        .not('estado', 'in', '(ejecutado,rechazado,borrador)')
+        .order('fecha_programada');
+      const cont = document.getElementById('programados');
+      if (!data?.length) { cont.innerHTML = '<div class="empty" style="padding:1.5rem"><p>No hay pagos programados.</p></div>'; return; }
+      const estadoLabel = { aprobado_admin:'En aprobación', aprobado_gerencia:'Aprobado gerencia', aprobado_firma:'✓ Listo para pagar' };
+      const estadoColor = { aprobado_admin:'badge-purple', aprobado_gerencia:'badge-blue', aprobado_firma:'badge-green' };
+      cont.innerHTML = data.map(p => {
+        const fecha = new Date(p.fecha_programada+'T12:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:16px;font-weight:700">${fecha}</div>
+            <span class="badge ${estadoColor[p.estado]||'badge-gray'}">${estadoLabel[p.estado]||p.estado}</span>
+          </div>
+          <div style="font-size:20px;font-weight:700;color:var(--success)">${p.moneda==='USD'?'US$ ':'S/ '}${parseFloat(p.monto).toLocaleString('es-PE',{minimumFractionDigits:2})}</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function cargarHistorial() {
+      const { data } = await sbClient.from('pagos_ejecutados')
+        .select('fecha_pago, ruc_empresa, numero_operacion, banco_origen, moneda, monto, monto_pen')
+        .eq('ruc_proveedor', perfil.ruc_empresa)
+        .order('fecha_pago', { ascending: false });
+      const tbody = document.getElementById('tbody');
+      if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><p>Sin pagos registrados.</p></div></td></tr>'; return; }
+      tbody.innerHTML = data.map(p => {
+        const fecha = new Date(p.fecha_pago+'T12:00:00').toLocaleDateString('es-PE');
+        return `<tr>
+          <td style="font-weight:600">${fecha}</td>
+          <td style="font-size:13px;font-family:monospace">${p.ruc_empresa}</td>
+          <td style="font-family:monospace;font-size:13px">${p.numero_operacion||'—'}</td>
+          <td style="font-size:13px">${p.banco_origen||'—'}</td>
+          <td><span class="badge badge-gray" style="font-size:11px">${p.moneda}</span></td>
+          <td style="font-weight:700;color:var(--success)">${p.moneda==='USD'?'US$ ':'S/ '}${parseFloat(p.monto).toLocaleString('es-PE',{minimumFractionDigits:2})}</td>
+        </tr>`;
+      }).join('');
+    }
+    init();
+  </script>
+</body>
+</html>

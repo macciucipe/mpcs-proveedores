@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentos · Portal Proveedores</title>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="portal-layout">
+  <header class="portal-header">
+    <div class="portal-logo"><span class="mpc">MPC</span><span class="sol">Soluciones</span><span class="sep">|</span><span class="prov-name" id="header-empresa">—</span></div>
+    <div class="portal-user"><span id="header-nombre">—</span><button onclick="handleLogout()">Salir</button></div>
+  </header>
+  <nav class="portal-nav">
+    <a href="dashboard.html" class="nav-link">Inicio</a>
+    <a href="facturas.html" class="nav-link">Facturas</a>
+    <a href="pagos.html" class="nav-link">Mis pagos</a>
+    <a href="documentos.html" class="nav-link active">Documentos</a>
+    <a href="precios.html" class="nav-link">Lista de precios</a>
+  </nav>
+  <main class="portal-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:10px">
+      <div>
+        <h1 style="font-size:20px;font-weight:700">Documentos</h1>
+        <p style="font-size:14px;color:var(--text-muted)">Ficha RUC, contratos, acuerdos y lo que MPC te solicite</p>
+      </div>
+      <label class="btn btn-primary" style="cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Subir documento
+        <input type="file" id="doc-file" style="display:none" accept=".pdf,.doc,.docx,.jpg,.png,.zip" onchange="abrirSubir()" />
+      </label>
+    </div>
+
+    <!-- Modal categoría -->
+    <div class="modal-overlay hidden" id="modal-cat">
+      <div class="modal" style="max-width:440px">
+        <div class="modal-header"><h3>Subir documento</h3><button class="modal-close" onclick="cerrar('modal-cat')">×</button></div>
+        <div class="modal-body">
+          <div class="field">
+            <label>Categoría *</label>
+            <select id="cat-sel">
+              <option value="ficha_ruc">Ficha RUC</option>
+              <option value="contrato">Contrato</option>
+              <option value="acuerdo">Acuerdo comercial</option>
+              <option value="certificacion">Certificación</option>
+              <option value="reporte">Reporte solicitado</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0">
+            <label>Notas (opcional)</label>
+            <input type="text" id="cat-notas" placeholder="Descripción breve del documento" />
+          </div>
+          <div id="msg-cat" class="alert" style="display:none;margin-top:10px"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="cerrar('modal-cat')">Cancelar</button>
+          <button class="btn btn-primary" id="btn-subir-doc" onclick="subirDoc()">Subir</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:1.5rem">
+      <div id="docs-lista"><div class="loading">Cargando...</div></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    let perfil = null;
+    const catLabel = { ficha_ruc:'Ficha RUC', contrato:'Contrato', acuerdo:'Acuerdo', certificacion:'Certificación', reporte:'Reporte', otro:'Otro' };
+
+    async function init() {
+      perfil = await requireAuth(); if (!perfil) return;
+      document.getElementById('header-nombre').textContent  = perfil.nombre;
+      document.getElementById('header-empresa').textContent = perfil.nombre_empresa || '';
+      await cargar();
+    }
+
+    async function cargar() {
+      const { data } = await sbClient.from('proveedor_documentos')
+        .select('*').eq('documento', perfil.ruc_empresa).order('created_at', { ascending: false });
+      const cont = document.getElementById('docs-lista');
+      if (!data?.length) { cont.innerHTML = '<div class="empty"><h3>Sin documentos</h3><p>Subí tus documentos usando el botón de arriba.</p></div>'; return; }
+      cont.innerHTML = data.map(doc => {
+        const fecha = new Date(doc.created_at).toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'});
+        return `<div class="doc-item">
+          <div class="doc-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${doc.nombre}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${catLabel[doc.categoria]||doc.categoria} · ${fecha}${doc.notas?' · '+doc.notas:''}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="verDoc('${doc.storage_path}')">Ver</button>
+        </div>`;
+      }).join('');
+    }
+
+    function abrirSubir() {
+      const f = document.getElementById('doc-file').files[0];
+      if (!f) return;
+      document.getElementById('msg-cat').style.display = 'none';
+      document.getElementById('modal-cat').classList.remove('hidden');
+    }
+
+    async function subirDoc() {
+      const file = document.getElementById('doc-file').files[0];
+      const cat  = document.getElementById('cat-sel').value;
+      const notas= document.getElementById('cat-notas').value.trim();
+      const msg  = document.getElementById('msg-cat');
+      const btn  = document.getElementById('btn-subir-doc');
+      if (!file) return;
+      btn.disabled = true; btn.textContent = 'Subiendo...';
+      try {
+        const path = `${perfil.ruc_empresa}/${Date.now()}_${file.name}`;
+        const { error: sErr } = await sbClient.storage.from('proveedores').upload(path, file);
+        if (sErr) throw new Error(sErr.message);
+        const { error: dErr } = await sbClient.from('proveedor_documentos').insert({
+          documento:    perfil.ruc_empresa,
+          categoria:    cat,
+          nombre:       file.name,
+          storage_path: path,
+          tamanio_kb:   Math.round(file.size/1024),
+          notas:        notas || null,
+          subido_por:   perfil.user_id,
+        });
+        if (dErr) throw new Error(dErr.message);
+        cerrar('modal-cat');
+        document.getElementById('doc-file').value = '';
+        await cargar();
+      } catch(e) {
+        msg.className = 'alert alert-error'; msg.textContent = 'Error: '+e.message; msg.style.display = 'block';
+      }
+      btn.disabled = false; btn.textContent = 'Subir';
+    }
+
+    async function verDoc(path) {
+      const { data } = await sbClient.storage.from('proveedores').createSignedUrl(path, 60);
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    }
+
+    function cerrar(id){ document.getElementById(id).classList.add('hidden'); }
+    document.getElementById('modal-cat').addEventListener('click', function(e){ if(e.target===this) cerrar('modal-cat'); });
+    init();
+  </script>
+</body>
+</html>

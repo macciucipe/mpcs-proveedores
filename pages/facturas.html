@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facturas · Portal Proveedores</title>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="portal-layout">
+
+  <header class="portal-header">
+    <div class="portal-logo">
+      <span class="mpc">MPC</span><span class="sol">Soluciones</span>
+      <span class="sep">|</span><span class="prov-name" id="header-empresa">—</span>
+    </div>
+    <div class="portal-user"><span id="header-nombre">—</span><button onclick="handleLogout()">Salir</button></div>
+  </header>
+
+  <nav class="portal-nav">
+    <a href="dashboard.html" class="nav-link">Inicio</a>
+    <a href="facturas.html" class="nav-link active">Facturas</a>
+    <a href="pagos.html" class="nav-link">Mis pagos</a>
+    <a href="documentos.html" class="nav-link">Documentos</a>
+    <a href="precios.html" class="nav-link">Lista de precios</a>
+  </nav>
+
+  <main class="portal-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:10px">
+      <div>
+        <h1 style="font-size:20px;font-weight:700">Mis facturas</h1>
+        <p style="font-size:14px;color:var(--text-muted)">Subí y hacé seguimiento de tus facturas</p>
+      </div>
+      <button class="btn btn-primary" onclick="abrirSubirFactura()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Subir factura
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 id="count-label">Facturas</h2>
+        <select id="filtro-estado" onchange="filtrar()" style="padding:6px 10px;border:1px solid var(--border-md);border-radius:var(--radius-md);font-size:13px">
+          <option value="">Todos los estados</option>
+          <option value="pendiente_validacion">Pendiente validación</option>
+          <option value="validada">Validada</option>
+          <option value="observada">Observada</option>
+          <option value="programada">Programada</option>
+          <option value="pagada">Pagada</option>
+          <option value="rechazada">Rechazada</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Empresa</th>
+              <th>Emisión</th>
+              <th>Vencimiento</th>
+              <th>Total</th>
+              <th>Estado</th>
+              <th>Observación</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"><tr><td colspan="7"><div class="loading">Cargando...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL SUBIR FACTURA -->
+  <div class="modal-overlay hidden" id="modal-subir">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Subir factura</h3>
+        <button class="modal-close" onclick="cerrar('modal-subir')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          Podés subir el XML de SUNAT para autocompletar los datos, o completarlos manualmente.
+        </div>
+
+        <!-- Upload XML -->
+        <div class="upload-area" onclick="document.getElementById('xml-file').click()" style="margin-bottom:1.25rem">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted);margin-bottom:8px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          <div style="font-size:14px;font-weight:600;color:var(--text-muted)">Subir XML de SUNAT</div>
+          <div style="font-size:12px;color:var(--text-muted)">o completar los datos manualmente abajo</div>
+          <input type="file" id="xml-file" accept=".xml" style="display:none" onchange="procesarXML(this)" />
+        </div>
+        <div id="xml-status" style="display:none;margin-bottom:1rem"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="field" style="margin:0">
+            <label>Serie *</label>
+            <input type="text" id="s-serie" placeholder="F001" maxlength="4" style="font-family:monospace;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" />
+          </div>
+          <div class="field" style="margin:0">
+            <label>Correlativo *</label>
+            <input type="text" id="s-corr" placeholder="00001234" maxlength="8" style="font-family:monospace" />
+          </div>
+          <div class="field" style="margin:0">
+            <label>Empresa receptora *</label>
+            <select id="s-empresa"></select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="field" style="margin:0">
+            <label>Fecha emisión *</label>
+            <input type="date" id="s-fecha-em" />
+          </div>
+          <div class="field" style="margin:0">
+            <label>Fecha vencimiento</label>
+            <input type="date" id="s-fecha-ven" />
+          </div>
+          <div class="field" style="margin:0">
+            <label>Moneda</label>
+            <select id="s-moneda" onchange="toggleTC()">
+              <option value="PEN">Soles (PEN)</option>
+              <option value="USD">Dólares (USD)</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="field" style="margin:0">
+            <label>Subtotal (sin IGV)</label>
+            <input type="number" id="s-subtotal" step="0.01" min="0" onchange="calcTotal()" />
+          </div>
+          <div class="field" style="margin:0">
+            <label>IGV</label>
+            <input type="number" id="s-igv" step="0.01" min="0" onchange="calcTotal()" />
+          </div>
+          <div class="field" style="margin:0">
+            <label>Total *</label>
+            <input type="number" id="s-total" step="0.01" min="0" style="font-weight:700" />
+          </div>
+        </div>
+        <div id="sec-tc" style="display:none" class="field">
+          <label>Tipo de cambio</label>
+          <input type="number" id="s-tc" step="0.001" placeholder="3.750" />
+        </div>
+
+        <!-- PDF adjunto -->
+        <div class="field">
+          <label>PDF de la factura (opcional)</label>
+          <input type="file" id="pdf-file" accept=".pdf" style="padding:8px;border:1px solid var(--border-md);border-radius:var(--radius-md);width:100%" />
+        </div>
+
+        <div id="msg-subir" class="alert" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="cerrar('modal-subir')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-subir" onclick="subirFactura()">Enviar factura</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    let perfil   = null;
+    let facturas = [];
+    let empresas = [];
+
+    async function init() {
+      perfil = await requireAuth();
+      if (!perfil) return;
+      document.getElementById('header-nombre').textContent  = perfil.nombre;
+      document.getElementById('header-empresa').textContent = perfil.nombre_empresa || '';
+      await Promise.all([cargar(), cargarEmpresas()]);
+    }
+
+    async function cargarEmpresas() {
+      const { data } = await sbClient.from('empresas').select('ruc, razon_social, abreviatura').eq('estado','activa');
+      empresas = data || [];
+      const sel = document.getElementById('s-empresa');
+      sel.innerHTML = '<option value="">-- Seleccionar --</option>';
+      empresas.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.ruc; opt.textContent = `${e.abreviatura} — ${e.razon_social}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function cargar() {
+      const { data } = await sbClient.from('facturas_proveedor')
+        .select('id, numero_completo, ruc_receptor, fecha_emision, fecha_vencimiento, moneda, total, estado, observaciones')
+        .eq('ruc_emisor', perfil.ruc_empresa)
+        .order('created_at', { ascending: false });
+      facturas = data || [];
+      filtrar();
+    }
+
+    function filtrar() {
+      const estado = document.getElementById('filtro-estado').value;
+      const lista  = estado ? facturas.filter(f => f.estado === estado) : facturas;
+      document.getElementById('count-label').textContent = `Facturas (${lista.length})`;
+      const tbody = document.getElementById('tbody');
+      if (!lista.length) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><p>Sin facturas</p></div></td></tr>';
+        return;
+      }
+      const hoy = new Date().toISOString().split('T')[0];
+      tbody.innerHTML = lista.map(f => {
+        const em   = f.fecha_emision    ? new Date(f.fecha_emision+'T12:00:00').toLocaleDateString('es-PE') : '—';
+        const ven  = f.fecha_vencimiento? new Date(f.fecha_vencimiento+'T12:00:00').toLocaleDateString('es-PE') : '—';
+        const venc = f.fecha_vencimiento && f.fecha_vencimiento < hoy && f.estado !== 'pagada';
+        const emp  = empresas.find(e => e.ruc === f.ruc_receptor);
+        return `<tr>
+          <td><strong style="font-family:monospace;font-size:13px">${f.numero_completo||'—'}</strong></td>
+          <td style="font-size:13px">${emp?.abreviatura||f.ruc_receptor}</td>
+          <td style="font-size:13px;color:var(--text-muted)">${em}</td>
+          <td style="font-size:13px;${venc?'color:var(--error);font-weight:600':''}">${ven}${venc?' ⚠':''}</td>
+          <td style="font-weight:700">${f.moneda==='USD'?'US$ ':'S/ '}${parseFloat(f.total).toLocaleString('es-PE',{minimumFractionDigits:2})}</td>
+          <td><span class="badge est-${f.estado}" style="font-size:11px">${f.estado?.replace(/_/g,' ')}</span></td>
+          <td style="font-size:12px;color:${f.estado==='observada'?'var(--warning)':'var(--text-muted)'}">${f.observaciones||'—'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function abrirSubirFactura() {
+      ['s-serie','s-corr','s-subtotal','s-igv','s-total','s-tc'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+      document.getElementById('s-moneda').value   = 'PEN';
+      document.getElementById('s-fecha-em').value = new Date().toISOString().split('T')[0];
+      document.getElementById('s-fecha-ven').value= '';
+      document.getElementById('xml-status').style.display = 'none';
+      document.getElementById('msg-subir').style.display  = 'none';
+      toggleTC();
+      document.getElementById('modal-subir').classList.remove('hidden');
+    }
+
+    function toggleTC() {
+      document.getElementById('sec-tc').style.display = document.getElementById('s-moneda').value==='USD' ? '' : 'none';
+    }
+    function calcTotal() {
+      const sub = parseFloat(document.getElementById('s-subtotal').value)||0;
+      const igv = parseFloat(document.getElementById('s-igv').value)||0;
+      document.getElementById('s-total').value = (sub+igv).toFixed(2);
+    }
+
+    async function procesarXML(input) {
+      const file = input.files[0]; if (!file) return;
+      const status = document.getElementById('xml-status');
+      status.className = 'alert alert-warning'; status.textContent = 'Procesando XML...'; status.style.display = 'block';
+      try {
+        const text = await file.text();
+        const xml  = new DOMParser().parseFromString(text, 'text/xml');
+        const get  = tag => xml.querySelector(tag)?.textContent?.trim() || '';
+        const id   = get('ID');
+        if (id.includes('-')) {
+          document.getElementById('s-serie').value = id.split('-')[0].toUpperCase();
+          document.getElementById('s-corr').value  = id.split('-')[1];
+        }
+        const fechaEm = get('IssueDate');
+        const rucRecp = get('AccountingCustomerParty CompanyID');
+        if (fechaEm) document.getElementById('s-fecha-em').value = fechaEm;
+        if (rucRecp) {
+          const sel = document.getElementById('s-empresa');
+          if ([...sel.options].find(o => o.value === rucRecp)) sel.value = rucRecp;
+        }
+        const sub = get('TaxExclusiveAmount'); const igv = get('TaxAmount'); const tot = get('PayableAmount');
+        if (sub) document.getElementById('s-subtotal').value = parseFloat(sub).toFixed(2);
+        if (igv) document.getElementById('s-igv').value = parseFloat(igv).toFixed(2);
+        if (tot) document.getElementById('s-total').value = parseFloat(tot).toFixed(2);
+        status.className = 'alert alert-success'; status.textContent = '✓ XML procesado. Revisá los datos antes de enviar.';
+      } catch(e) {
+        status.className = 'alert alert-error'; status.textContent = 'No se pudo leer el XML. Completá manualmente.';
+      }
+    }
+
+    async function subirFactura() {
+      const msg  = document.getElementById('msg-subir');
+      const btn  = document.getElementById('btn-subir');
+      const serie = document.getElementById('s-serie').value.trim().toUpperCase();
+      const corr  = document.getElementById('s-corr').value.trim();
+      const emp   = document.getElementById('s-empresa').value;
+      const total = parseFloat(document.getElementById('s-total').value);
+      const fechaEm = document.getElementById('s-fecha-em').value;
+
+      if (!serie || !corr) { showMsg(msg,'alert-error','Ingresá serie y correlativo.'); return; }
+      if (!emp)   { showMsg(msg,'alert-error','Seleccioná la empresa a la que facturás.'); return; }
+      if (!total || !fechaEm) { showMsg(msg,'alert-error','Total y fecha de emisión son obligatorios.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Enviando...'; msg.style.display = 'none';
+      try {
+        const moneda = document.getElementById('s-moneda').value;
+        const tc     = parseFloat(document.getElementById('s-tc').value) || 1;
+
+        // Subir XML si hay
+        let xmlPath = null;
+        const xmlFile = document.getElementById('xml-file').files[0];
+        if (xmlFile) {
+          const { data: xmlUp } = await sbClient.storage.from('facturas')
+            .upload(`${perfil.ruc_empresa}/${Date.now()}_${xmlFile.name}`, xmlFile);
+          xmlPath = xmlUp?.path || null;
+        }
+
+        // Subir PDF si hay
+        let pdfPath = null;
+        const pdfFile = document.getElementById('pdf-file').files[0];
+        if (pdfFile) {
+          const { data: pdfUp } = await sbClient.storage.from('facturas')
+            .upload(`${perfil.ruc_empresa}/${Date.now()}_${pdfFile.name}`, pdfFile);
+          pdfPath = pdfUp?.path || null;
+        }
+
+        const { error } = await sbClient.from('facturas_proveedor').insert({
+          serie, correlativo: corr,
+          tipo_comprobante: 'factura',
+          ruc_emisor:   perfil.ruc_empresa,
+          nombre_emisor: perfil.nombre_empresa || perfil.nombre,
+          ruc_receptor: emp,
+          fecha_emision: fechaEm,
+          fecha_vencimiento: document.getElementById('s-fecha-ven').value || null,
+          moneda,
+          subtotal:  parseFloat(document.getElementById('s-subtotal').value) || 0,
+          igv:       parseFloat(document.getElementById('s-igv').value) || 0,
+          total,
+          tipo_cambio: moneda==='USD' ? tc : 1,
+          total_pen:   moneda==='USD' ? total*tc : total,
+          xml_path:  xmlPath,
+          pdf_path:  pdfPath,
+          subida_por: perfil.user_id,
+        });
+        if (error) throw new Error(error.message);
+        cerrar('modal-subir');
+        await cargar();
+        alert('✅ Factura enviada correctamente. MPC la revisará y actualizará el estado en breve.');
+      } catch(e) {
+        showMsg(msg,'alert-error','Error: '+e.message);
+      }
+      btn.disabled = false; btn.textContent = 'Enviar factura';
+    }
+
+    function showMsg(el,cls,txt){ el.className=`alert ${cls}`;el.textContent=txt;el.style.display='block'; }
+    function cerrar(id){ document.getElementById(id).classList.add('hidden'); }
+    document.getElementById('modal-subir').addEventListener('click', function(e){ if(e.target===this) cerrar('modal-subir'); });
+    document.addEventListener('keydown', e => { if(e.key==='Escape') cerrar('modal-subir'); });
+
+    init();
+  </script>
+</body>
+</html>
