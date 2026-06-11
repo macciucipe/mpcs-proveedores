@@ -81,7 +81,7 @@
 
     async function cargar() {
       const { data } = await sbClient.from('proveedor_documentos')
-        .select('*').eq('documento', perfil.ruc_empresa).order('created_at', { ascending: false });
+        .select('*').eq('documento', perfil.ruc_proveedor).order('created_at', { ascending: false });
       const cont = document.getElementById('docs-lista');
       if (!data?.length) { cont.innerHTML = '<div class="empty"><h3>Sin documentos</h3><p>Subí tus documentos usando el botón de arriba.</p></div>'; return; }
       cont.innerHTML = data.map(doc => {
@@ -115,11 +115,11 @@
       if (!file) return;
       btn.disabled = true; btn.textContent = 'Subiendo...';
       try {
-        const path = `${perfil.ruc_empresa}/${Date.now()}_${file.name}`;
+        const path = `${perfil.ruc_proveedor}/${Date.now()}_${file.name}`;
         const { error: sErr } = await sbClient.storage.from('proveedores').upload(path, file);
         if (sErr) throw new Error(sErr.message);
         const { error: dErr } = await sbClient.from('proveedor_documentos').insert({
-          documento:    perfil.ruc_empresa,
+          documento:    perfil.ruc_proveedor,
           categoria:    cat,
           nombre:       file.name,
           storage_path: path,

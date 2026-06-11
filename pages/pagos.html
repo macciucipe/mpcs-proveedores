@@ -57,7 +57,7 @@
     async function cargarProgramados() {
       const { data } = await sbClient.from('programacion_pagos')
         .select('fecha_programada, moneda, monto, estado, ruc_empresa')
-        .eq('ruc_proveedor', perfil.ruc_empresa)
+        .eq('ruc_proveedor', perfil.ruc_proveedor)
         .not('estado', 'in', '(ejecutado,rechazado,borrador)')
         .order('fecha_programada');
       const cont = document.getElementById('programados');
@@ -79,7 +79,7 @@
     async function cargarHistorial() {
       const { data } = await sbClient.from('pagos_ejecutados')
         .select('fecha_pago, ruc_empresa, numero_operacion, banco_origen, moneda, monto, monto_pen')
-        .eq('ruc_proveedor', perfil.ruc_empresa)
+        .eq('ruc_proveedor', perfil.ruc_proveedor)
         .order('fecha_pago', { ascending: false });
       const tbody = document.getElementById('tbody');
       if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><p>Sin pagos registrados.</p></div></td></tr>'; return; }

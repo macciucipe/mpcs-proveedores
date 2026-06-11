@@ -185,7 +185,7 @@
     async function cargar() {
       const { data } = await sbClient.from('facturas_proveedor')
         .select('id, numero_completo, ruc_receptor, fecha_emision, fecha_vencimiento, moneda, total, estado, observaciones')
-        .eq('ruc_emisor', perfil.ruc_empresa)
+        .eq('ruc_emisor', perfil.ruc_proveedor)
         .order('created_at', { ascending: false });
       facturas = data || [];
       filtrar();
@@ -291,7 +291,7 @@
         const xmlFile = document.getElementById('xml-file').files[0];
         if (xmlFile) {
           const { data: xmlUp } = await sbClient.storage.from('facturas')
-            .upload(`${perfil.ruc_empresa}/${Date.now()}_${xmlFile.name}`, xmlFile);
+            .upload(`${perfil.ruc_proveedor}/${Date.now()}_${xmlFile.name}`, xmlFile);
           xmlPath = xmlUp?.path || null;
         }
 
@@ -300,14 +300,14 @@
         const pdfFile = document.getElementById('pdf-file').files[0];
         if (pdfFile) {
           const { data: pdfUp } = await sbClient.storage.from('facturas')
-            .upload(`${perfil.ruc_empresa}/${Date.now()}_${pdfFile.name}`, pdfFile);
+            .upload(`${perfil.ruc_proveedor}/${Date.now()}_${pdfFile.name}`, pdfFile);
           pdfPath = pdfUp?.path || null;
         }
 
         const { error } = await sbClient.from('facturas_proveedor').insert({
           serie, correlativo: corr,
           tipo_comprobante: 'factura',
-          ruc_emisor:   perfil.ruc_empresa,
+          ruc_emisor:   perfil.ruc_proveedor,
           nombre_emisor: perfil.nombre_empresa || perfil.nombre,
           ruc_receptor: emp,
           fecha_emision: fechaEm,

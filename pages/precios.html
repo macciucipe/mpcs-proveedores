@@ -80,7 +80,7 @@
     async function cargarHistorial() {
       // Buscar en proveedor_documentos los de categoría 'lista_precios'
       const { data } = await sbClient.from('proveedor_documentos')
-        .select('*').eq('documento', perfil.ruc_empresa)
+        .select('*').eq('documento', perfil.ruc_proveedor)
         .eq('categoria', 'lista_precios')
         .order('created_at', { ascending: false });
 
@@ -116,7 +116,7 @@
       btn.disabled = true; btn.textContent = 'Enviando...'; msg.style.display = 'none';
 
       try {
-        const path = `${perfil.ruc_empresa}/listas/${Date.now()}_${file.name}`;
+        const path = `${perfil.ruc_proveedor}/listas/${Date.now()}_${file.name}`;
         const { error: sErr } = await sbClient.storage.from('proveedores').upload(path, file);
         if (sErr) throw new Error(sErr.message);
 
@@ -127,7 +127,7 @@
         ].filter(Boolean).join(' · ');
 
         const { error: dErr } = await sbClient.from('proveedor_documentos').insert({
-          documento:    perfil.ruc_empresa,
+          documento:    perfil.ruc_proveedor,
           categoria:    'lista_precios',
           nombre:       file.name,
           storage_path: path,

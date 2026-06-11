@@ -104,7 +104,7 @@
     }
 
     async function cargarKPIs() {
-      const ruc = perfil.ruc_empresa; // RUC del proveedor
+      const ruc = perfil.ruc_proveedor; // RUC del proveedor
       const hoy  = new Date().toISOString().split('T')[0];
       const en7  = new Date(); en7.setDate(en7.getDate()+7);
       const en7s = en7.toISOString().split('T')[0];
@@ -140,7 +140,7 @@
     async function cargarProximosPagos() {
       const { data } = await sbClient.from('programacion_pagos')
         .select('fecha_programada, moneda, monto, estado')
-        .eq('ruc_proveedor', perfil.ruc_empresa)
+        .eq('ruc_proveedor', perfil.ruc_proveedor)
         .not('estado', 'in', '(ejecutado,rechazado,borrador)')
         .order('fecha_programada')
         .limit(3);
@@ -168,7 +168,7 @@
     async function cargarFacturasRecientes() {
       const { data } = await sbClient.from('facturas_proveedor')
         .select('numero_completo, fecha_emision, total, moneda, estado')
-        .eq('ruc_emisor', perfil.ruc_empresa)
+        .eq('ruc_emisor', perfil.ruc_proveedor)
         .order('created_at', { ascending: false })
         .limit(5);
 
